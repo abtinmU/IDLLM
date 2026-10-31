@@ -8,7 +8,7 @@ This folder runs the ULM experiments for three models:
 
 The same experiments are also available as notebooks in `notebooks/`.
 
-## What you need
+## What is needed
 
 - Python 3
 - An NVIDIA GPU with BF16 support, such as an A100 or H100
