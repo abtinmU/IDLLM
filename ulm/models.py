@@ -43,7 +43,7 @@ MODEL_SPECS = {
         model_id='microsoft/Phi-3-mini-128k-instruct',
         display_name='Phi-3-mini-128k-instruct', short_name='Phi-3', family='phi3',
         layers=(14, 26, 32), primary_layer=14, hidden_width=3072, num_layers=32,
-        code_release_sha='c4680d805d9682672b47487f5f134082501770becd361ed11b50d55be12a9126',
+        code_release_sha='a869aacaba8a6ab62463910d8abcb96fd83c8b99edfdc89817591a5b40d34f1c',
         pinned_revision='f3c06aed622e14ca0abf5115094e4fc9a9948f36',
     ),
     'qwen25': ModelSpec(
@@ -51,7 +51,7 @@ MODEL_SPECS = {
         model_id='Qwen/Qwen2.5-3B-Instruct',
         display_name='Qwen2.5-3B-Instruct', short_name='Qwen', family='qwen2',
         layers=(16, 29, 36), primary_layer=16, hidden_width=2048, num_layers=36,
-        code_release_sha='a80eb8d10895e6b571d39549f52e8e159b9cc920c3817fdcfaea34fa2bdd38be',
+        code_release_sha='c29b75bb26cb94bb13c690578e0657b9224773f215f9c451f4cd42b61b145289',
         expected_eos_token='<|im_end|>', expected_model_type='qwen2', check_chat_template=True,
     ),
     'llama32': ModelSpec(
@@ -59,7 +59,7 @@ MODEL_SPECS = {
         model_id='meta-llama/Llama-3.2-3B-Instruct',
         display_name='Llama-3.2-3B-Instruct', short_name='Llama', family='llama',
         layers=(12, 23, 28), primary_layer=12, hidden_width=3072, num_layers=28,
-        code_release_sha='aecf3e15d3bc1ca13346e67d9d8e454c4ba79992c0d12dbd24fdcb3ee04b6160',
+        code_release_sha='25334ad52390d252958138389990adc92db9a00c2cd05761236be4ebbbd5b82d',
         gated=True, stop_policy='llama', expected_model_type='llama', check_chat_template=True,
         smoke_test=True, derived_source_label='llama32_1024',
     ),

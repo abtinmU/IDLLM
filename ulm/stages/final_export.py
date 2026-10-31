@@ -186,7 +186,7 @@ if not REPLAY_COMPLETE:
     audit={
      'model':CFG['model_id'],
      'frozen_revision':MODEL_REV,
-     'source_dirs':{'ifeval_simple':SIMPLE_RESULTS,'followbench_derived':FOLLOWBENCH_RESULTS},
+     'source_dirs':{'ifeval_simple':str(SIMPLE_RESULTS),'followbench_derived':str(FOLLOWBENCH_RESULTS)},
      'main_research_questions':['formulation_transfer','type_aware_vs_equally_augmented_shared',
                                 'within_pair_predictive_reliability'],
      'protocol_cautions':['FollowBench-derived labels are for added verifiable rules',
