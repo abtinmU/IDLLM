@@ -38,14 +38,6 @@ FollowBench supplies the source instructions for the controlled FollowBench-deri
 - Download: automatic
 - Local path after download: `<workdir>/FollowBench-derived/<model-folder>/data/followbench_en/`
 
-## Original IFEval
-
-The original 541-example IFEval file is used only by the optional IFEval-derived study. Paper reproduction does not need this stage.
-
-- Source: [Original IFEval JSONL](https://raw.githubusercontent.com/google-research/google-research/master/instruction_following_eval/data/input_data.jsonl)
-- Download: automatic when `--run-ifeval-derived` is used
-- Local filename after download: `original_ifeval_541.jsonl` inside the model's IFEval-derived data directory
-
 ## Official IFEval checker
 
 The experiments use the official IFEval checker to assign deterministic compliance labels. The required checker files are downloaded and verified by SHA-256. They are code, not another dataset.

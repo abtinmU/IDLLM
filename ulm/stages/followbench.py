@@ -1,4 +1,4 @@
-"""Part III. FollowBench-derived controlled instruction setting.
+"""Part II. FollowBench-derived controlled instruction setting.
 
 Generated from notebooks/*_run.ipynb; runs in the shared namespace set up by
 ulm/pipeline.py, so names defined by earlier stages are available here.

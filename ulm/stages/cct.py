@@ -1,4 +1,4 @@
-"""Part V. Counterfactual Compliance Transfer (CCT): 2 x 2 wording/requirement diagnostic.
+"""Part III. Counterfactual Compliance Transfer (CCT): 2 x 2 wording/requirement diagnostic.
 
 Generated from notebooks/*_run.ipynb; runs in the shared namespace set up by
 ulm/pipeline.py, so names defined by earlier stages are available here.
@@ -368,7 +368,7 @@ if not REPLAY_COMPLETE:
     manifest={
      'checkpoint':CFG['model_id'],'revision':MODEL_REV,
      'benchmark_zip':str(CCT_ZIP),'benchmark_sha256':hashlib.sha256(CCT_ZIP.read_bytes()).hexdigest(),
-     'source_results':{'IFEval-Simple':str(SIMPLE_RESULTS),'IFEval-derived':str(IFEVAL_RESULTS) if RUN_IFEVAL_DERIVED else 'SKIPPED',
+     'source_results':{'IFEval-Simple':str(SIMPLE_RESULTS),
                        'FollowBench-derived':str(FOLLOWBENCH_RESULTS)},
      'cct_refit_protocol':'independent CCT five-fold O/R1-trained refit; NOT byte-identical archived source-study probes',
      'claims':['formulation_transfer','type-aware_over_equally_augmented_shared','paired_individual_change_prediction'],

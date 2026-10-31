@@ -61,7 +61,8 @@ def build_rows(zip_path):
                         'task_id': task_id,
                         'task_family_id': family['task_family_id'],
                         'cct_fold': int(family['cct_fold']),
-                        'source_dataset': example['source_dataset'],
+                        'source_dataset': ('IFEval-Simple' if section in 'AB'
+                                           else 'IFEval (CCT source)'),
                         'constraint_type': constraint_type,
                         'condition': condition,
                         'requirement': requirement,

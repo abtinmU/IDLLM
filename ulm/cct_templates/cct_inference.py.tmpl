@@ -106,7 +106,7 @@ class CCTInference:
    record={field:a[field] for field in ['id','label','original_grade_same_response','tokens','input_tokens','capped','response','prompt_sha256']}
    record.update({v:r[v] for v in ['section','task_id','condition','fold','task_family_id','instruction_type']})
    record['family_uid']= ('simple_' if r['section'] in 'AB' else 'derived_')+str(r['task_id'])
-   record['type']=r['instruction_type'];record['dataset']='IFEval-Simple' if r['section'] in 'AB' else 'IFEval-derived'
+   record['type']=r['instruction_type'];record['dataset']='IFEval-Simple' if r['section'] in 'AB' else 'IFEval (CCT source)'
    saved.append(record)
    if (k+1)%20==0 or k+1==len(rows):
     print(f'CCT progress {k+1}/{len(rows)} | cached generations {reuse_gen} | cached states {reuse_state}',flush=True)

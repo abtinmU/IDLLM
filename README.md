@@ -1,6 +1,6 @@
 # ULM experiments
 
-This repository reproduces the ULM experiments for Phi-3 Mini, Qwen2.5-3B, and Llama-3.2-3B. The three matching notebooks are in `notebooks/`.
+This repository reproduces the paper's three experiment groups—IFEval-Simple, FollowBench-derived, and CCT—for Phi-3 Mini, Qwen2.5-3B, and Llama-3.2-3B. The three matching model notebooks are in `notebooks/`.
 
 ## Setup
 
@@ -27,7 +27,7 @@ To rebuild these tables from completed runs without training again:
 python paper_results.py results
 ```
 
-To run one model, replace `all` with `phi3`, `qwen`, or `llama`. The optional IFEval-derived study is outside the paper configuration; run it only with `--run-ifeval-derived`.
+To run one model, replace `all` with `phi3`, `qwen`, or `llama`.
 
 ## Datasets
 
@@ -37,7 +37,7 @@ The code automatically downloads the other public data when needed:
 
 - [IFEval-Simple data](https://raw.githubusercontent.com/apple-aiml-research/ml-internal-llms-instruction-following/main/data/ifeval_simple.jsonl)
 - [FollowBench data](https://github.com/YJiangcm/FollowBench/tree/master/data)
-- [Original IFEval data and checker](https://github.com/google-research/google-research/tree/master/instruction_following_eval)
+- [Official IFEval checker](https://github.com/google-research/google-research/tree/master/instruction_following_eval)
 
 Manual downloads are not needed, but if you want to download and inspect them yourself, put IFEval-Simple at `<workdir>/IFEval-Simple/data/ifeval_simple.jsonl` and FollowBench files in `<workdir>/FollowBench-derived/<model-folder>/data/followbench_en/`. Pass a local IFEval checker with `--checker-dir PATH`.
 

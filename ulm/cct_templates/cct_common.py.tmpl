@@ -51,7 +51,7 @@ def load_cct(p):
   return rows,by,proto
 
 def checker_module(work):
- """Download and verify exact original IFEval checker sources."""
+ """Download and verify the exact official IFEval checker sources."""
  import sys,urllib.request,importlib
  root=Path(work)/'official_checker'; pkg=root/'instruction_following_eval';pkg.mkdir(parents=True,exist_ok=True)
  (pkg/'__init__.py').touch()

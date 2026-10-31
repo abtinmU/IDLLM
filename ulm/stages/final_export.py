@@ -1,4 +1,4 @@
-"""Part IV. Unified final-paper results export.
+"""Unified final-paper results export.
 
 Generated from notebooks/*_run.ipynb; runs in the shared namespace set up by
 ulm/pipeline.py, so names defined by earlier stages are available here.
@@ -22,7 +22,6 @@ if not REPLAY_COMPLETE:
 
     
     simple_p = pd.read_csv(Path(SIMPLE_RESULTS)/'oof_original_and_R_predictions.csv')
-    ifeval_p = pd.read_csv(Path(IFEVAL_RESULTS)/'predictions_all_forms.csv') if RUN_IFEVAL_DERIVED else None
     follow_p = pd.read_csv(Path(FOLLOWBENCH_RESULTS)/'oof_predictions.csv')
 
     def normalized(frame, setting):
@@ -30,8 +29,6 @@ if not REPLAY_COMPLETE:
         if setting=='IFEval-Simple':
             f=f.rename(columns={'task_id':'case'})
             f['family']=f['case']
-        elif setting=='IFEval-derived':
-            f=f.rename(columns={'group':'family','key':'case'})
         else:
             f=f.rename(columns={'group':'family','key':'case'})
         f['setting']=setting
@@ -46,12 +43,11 @@ if not REPLAY_COMPLETE:
         return f[cols].copy()
 
     simple_p=simple_p[simple_p.variant.isin(['original','R1','R2'])].copy()
-    if RUN_IFEVAL_DERIVED:ifeval_p=ifeval_p[ifeval_p.variant.isin(['original','R1','R2'])].copy()
     follow_p=follow_p[follow_p.variant.isin(['original','R1','R2'])].copy()
     
-    ALL=pd.concat([normalized(simple_p,'IFEval-Simple')]+([normalized(ifeval_p,'IFEval-derived')] if RUN_IFEVAL_DERIVED else [])+
-                  [normalized(follow_p,'FollowBench-derived')],ignore_index=True)
-    assert ALL.setting.nunique()==(3 if RUN_IFEVAL_DERIVED else 2)
+    ALL=pd.concat([normalized(simple_p,'IFEval-Simple'),
+                  normalized(follow_p,'FollowBench-derived')],ignore_index=True)
+    assert ALL.setting.nunique()==2
     assert not ALL.duplicated(['setting','case','type','variant']).any(), 'Duplicate example/type/formulation; inspect source grouping.'
     assert ALL.groupby(['setting','case','type']).variant.nunique().eq(3).all(), 'Incomplete original/R1/R2 task pairs.'
     ALL.to_csv(FINAL_ROOT/'all_out_of_fold_predictions.csv',index=False)
@@ -178,16 +174,11 @@ if not REPLAY_COMPLETE:
         'files':['H2_paired_OOD_AUROC_bootstrap.csv','original_domain_retention.csv',
                  'flip_prediction_diagnostic.csv','per_type_formulation_metrics.csv'] +
                 ([] if PAPER_ONLY else ['char_tfidf_control.csv'])},
-      'IFEval-derived':{
-        'dir':Path(IFEVAL_RESULTS) if RUN_IFEVAL_DERIVED else None,
-        'files':['H2_bootstrap_and_ID_retention.csv','OOD_controls.csv',
-                 'behavioral_flips.csv','per_type_and_formulation.csv']},
       'FollowBench-derived':{
         'dir':Path(FOLLOWBENCH_RESULTS),
         'files':['H2_bootstrap.csv','OOD_class_support.csv',
                  'behavioral_flip_tracking.csv','per_type_formulation.csv'] +
                 ([] if PAPER_ONLY else ['text_controls_metrics.csv'])}}
-    if not RUN_IFEVAL_DERIVED:required.pop('IFEval-derived')
     for name,info in required.items():
         missing=[fname for fname in info['files'] if not (info['dir']/fname).is_file()]
         assert not missing, f'{name}: expected source statistical outputs are missing: {missing}'
@@ -195,11 +186,10 @@ if not REPLAY_COMPLETE:
     audit={
      'model':CFG['model_id'],
      'frozen_revision':MODEL_REV,
-     'skipped_studies':[] if RUN_IFEVAL_DERIVED else ['IFEval-derived'],
-     'source_dirs':{'simple':SIMPLE_RESULTS,'ifeval':IFEVAL_RESULTS,'followbench':FOLLOWBENCH_RESULTS},
+     'source_dirs':{'ifeval_simple':SIMPLE_RESULTS,'followbench_derived':FOLLOWBENCH_RESULTS},
      'main_research_questions':['formulation_transfer','type_aware_vs_equally_augmented_shared',
                                 'within_pair_predictive_reliability'],
-     'protocol_cautions':['IFEval-derived and FollowBench-derived labels are for added verifiable rules',
+     'protocol_cautions':['FollowBench-derived labels are for added verifiable rules',
      'Only fixed, official checker labels are used',
      'Looped-model extensions, B3 and extra layer searches are excluded; CCT is a separate group-refit validation section'],
      'n_matched_rows':int(len(ALL)),

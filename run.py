@@ -36,8 +36,6 @@ def parse_args(argv=None):
     parser.add_argument('--model-rev', help='Hugging Face commit to pin on a fresh run (sets ULM_MODEL_REV)')
     parser.add_argument('--checker-dir', type=Path,
                         help='local official IFEval checker directory (sets ULM_CHECKER_SOURCE_DIR)')
-    parser.add_argument('--run-ifeval-derived', action='store_true',
-                        help='also run Part II, the IFEval-derived study, which the paper excludes')
     parser.add_argument('--paper', action='store_true',
                         help='run only the paper configuration and write compact paper tables')
     parser.add_argument('--until', choices=STAGE_NAMES, help='stop after this stage')
@@ -46,8 +44,6 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     if not args.list_stages and not args.model:
         parser.error('--model is required')
-    if args.paper and args.run_ifeval_derived:
-        parser.error('--paper cannot be combined with --run-ifeval-derived')
     return parser, args
 
 
@@ -86,8 +82,6 @@ def apply_environment(args, spec, several):
 def print_plan(args, spec, several):
     workdir = workdir_for(args, spec, several)
     stages = list(STAGE_NAMES[:STAGE_NAMES.index(args.until) + 1] if args.until else STAGE_NAMES)
-    if not args.run_ifeval_derived and 'ifeval-derived' in stages:
-        stages[stages.index('ifeval-derived')] = 'ifeval-derived (skipped)'
     print(f'model        {spec.display_name} ({spec.model_id})')
     print(f'revision     {spec.pinned_revision or args.model_rev or "first resolved commit, then frozen"}')
     print(f'layers       {spec.layers} primary {spec.primary_layer} | width {spec.hidden_width}')
@@ -134,8 +128,7 @@ def main(argv=None):
     if spec.gated and not os.environ.get('HF_TOKEN'):
         print('Note: gated checkpoint; set HF_TOKEN unless the Hugging Face cache is already authenticated.')
     from ulm import pipeline
-    pipeline.run(spec, until=args.until, run_ifeval_derived=args.run_ifeval_derived,
-                 paper_only=args.paper)
+    pipeline.run(spec, until=args.until, paper_only=args.paper)
     if args.paper and not args.until:
         write_paper_results(workdir_for(args, spec, several) or
                             Path(os.environ.get('ULM_WORKDIR', f'results/ulm_{spec.tag}_server_results')))
@@ -158,8 +151,6 @@ def child_command(args, spec):
         command += ['--cct-zip', str(args.cct_zip.expanduser().resolve())]
     if args.checker_dir is not None:
         command += ['--checker-dir', str(args.checker_dir.expanduser().resolve())]
-    if args.run_ifeval_derived:
-        command.append('--run-ifeval-derived')
     if args.paper:
         command.append('--paper')
     if args.until:
