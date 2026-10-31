@@ -1,0 +1,120 @@
+"""Frozen @@DISPLAY_NAME@@ controlled counterfactual inference and disk-level resume."""
+import os,json,sys,gc,time,platform,hashlib
+from pathlib import Path
+import numpy as np
+from cct_common import REVISION,hash_prompt,canon,savejson,VERIFIER_SHA,digest
+
+class CCTInference:
+ def __init__(self,work,check,lock_dtype='bfloat16'):
+  self.work=Path(work);self.work.mkdir(parents=True,exist_ok=True)
+  self.gendir=self.work/'response_cache';self.statedir=self.work/'activation_cache'
+  for p in (self.gendir,self.statedir):p.mkdir(parents=True,exist_ok=True)
+  self.check=check;self.model=None;self.tok=None;self.torch=None
+  self.dtype=lock_dtype;self.loaded=False
+ def load(self):
+  if self.loaded:return
+  import torch, transformers
+  from transformers import AutoTokenizer,AutoModelForCausalLM
+  assert transformers.__version__=='4.53.3',('Require transformers 4.53.3',transformers.__version__)
+  assert torch.cuda.is_available(),'A CUDA GPU runtime is required'
+  props=torch.cuda.get_device_properties(0)
+  assert props.major>=8,'This reproducibility protocol requires actual Ampere-or-newer CUDA BF16 hardware (e.g. A100).'
+  assert torch.cuda.is_bf16_supported(), 'Hardware BF16 unavailable'
+  torch.backends.cuda.matmul.allow_tf32=False
+  self.tok=AutoTokenizer.from_pretrained('@@MODEL_ID@@',revision=REVISION,trust_remote_code=False)
+  self.model=AutoModelForCausalLM.from_pretrained('@@MODEL_ID@@',revision=REVISION,
+                  torch_dtype=torch.bfloat16,device_map='auto',attn_implementation='sdpa',trust_remote_code=False)
+@@POST_LOAD@@
+  actual=getattr(self.model.config,'_commit_hash',None)
+  assert not actual or actual==REVISION,('Wrong model revision',actual)
+  self.torch=torch;self.loaded=True
+  self.hardware={'gpu':torch.cuda.get_device_name(0),'cuda_capability':[props.major,props.minor],
+      'torch':torch.__version__,'transformers':transformers.__version__,
+      'dtype':'bfloat16','attention':'sdpa','device_map':'auto',
+      'model_revision':REVISION,'torch_tf32':torch.backends.cuda.matmul.allow_tf32,
+      'decoding':'greedy','chat_template':'tokenizer.apply_chat_template(user,add_generation_prompt=True)'}
+  savejson(self.work/'hardware_manifest.json',self.hardware)
+  print('LOADED',self.hardware)
+@@STOP_IDS_METHOD@@ def encode(self,p,max_input):
+  enc=self.tok.apply_chat_template([{'role':'user','content':p}],add_generation_prompt=True,
+                tokenize=True,return_dict=True,return_tensors='pt')
+  n=int(enc['input_ids'].shape[-1]);assert n<=max_input,(n,max_input)
+  device=self.model.get_input_embeddings().weight.device
+  return {k:v.to(device) for k,v in enc.items()},n
+ def gen_cache_keys(self,r):
+  args={'prompt_sha256':r['prompt_sha256'],'model':REVISION,'dtype':'bfloat16','sdpa':True,
+        'generation_budget':int(r['generation_budget']),'max_input_tokens':int(r.get('max_input_tokens',1024)),
+        'chat_template':'apply_chat_template_user_add_generation_prompt','greedy':True,
+        'verifier_sha':VERIFIER_SHA,'type':r['instruction_type'],'kwargs':r['target_kwargs']}
+  return args,digest(canon(args).encode())[:32]
+ def get_response(self,r):
+  args,key=self.gen_cache_keys(r);path=self.gendir/(key+'.json')
+  if path.exists():
+   item=json.loads(path.read_text());assert item['cache_args']==args and item['prompt_sha256']==r['prompt_sha256']
+   assert item['label']==self.check(r['instruction_type'],r['target_kwargs'],item['response'])
+   return item,True
+  self.load();t=self.torch
+  enc,n=self.encode(r['prompt'],int(r.get('max_input_tokens',1024)))
+  with t.inference_mode():
+   gen=self.model.generate(**enc,max_new_tokens=int(r['generation_budget']),do_sample=False,num_beams=1,
+                   use_cache=True,@@GEN_STOP_KW@@)
+  ids=gen[0,n:].detach().cpu().tolist();k=len(ids)
+  response=self.tok.decode(ids,skip_special_tokens=True).strip()
+@@END_IDS@@
+  capped=int(k>=int(r['generation_budget']) and (not ids or ids[-1] not in end_ids))
+  label=self.check(r['instruction_type'],r['target_kwargs'],response)
+  original_grade=self.check(r['instruction_type'],r['original_kwargs'],response)
+  item={'id':r['id'],'prompt_sha256':r['prompt_sha256'],'response':response,
+        'generated_token_ids':ids,'label':label,'original_grade_same_response':original_grade,
+        'tokens':k,'input_tokens':n,'capped':capped,'cache_args':args}
+  savejson(path,item)
+  del gen,enc
+  return item,False
+ def get_state(self,r):
+  p_hash=r['prompt_sha256'];fp={'prompt_sha256':p_hash,'model_revision':REVISION,
+      'layers':@@LAYERS_LIST@@,'dtype':'bfloat16','max_input_tokens':int(r.get('max_input_tokens',1024)),
+      'chat_template':'apply_chat_template_user_add_generation_prompt','attention':'sdpa'}
+  key=digest(canon(fp).encode())[:32]
+  path=self.statedir/(key+'.npz');meta=self.statedir/(key+'.json')
+  if path.exists() and meta.exists():
+   assert json.loads(meta.read_text())==fp
+   with np.load(path,allow_pickle=False) as z:state=z['states']
+   assert state.shape==(3,@@HIDDEN_WIDTH@@) and np.isfinite(state).all()
+   return state.astype(np.float32),True
+  self.load();enc,n=self.encode(r['prompt'],int(r.get('max_input_tokens',1024)))
+  with self.torch.inference_mode():
+   out=self.model(**enc,output_hidden_states=True,use_cache=False,return_dict=True)
+   state=np.stack([out.hidden_states[j][0,-1].float().cpu().numpy() for j in @@LAYERS_TUPLE@@]).astype(np.float16)
+  assert state.shape==(3,@@HIDDEN_WIDTH@@) and np.isfinite(state).all()
+  temp=path.with_name(path.name+'.tmp')
+  with open(temp,'wb') as f:np.savez_compressed(f,states=state)
+  os.replace(temp,path);savejson(meta,fp)
+  del out,enc
+  return state.astype(np.float32),False
+ def task_only_state(self,base_task,max_input,source_id):
+  fake={'prompt':base_task,'prompt_sha256':hash_prompt(base_task),'max_input_tokens':max_input}
+  z,_=self.get_state(fake)
+  return z[0]
+ def run(self,rows,out,max_cases=None):
+  from collections import Counter
+  out=Path(out);out.mkdir(parents=True,exist_ok=True)
+  rows=rows[:max_cases] if max_cases else rows
+  saved=[];reuse_gen=0;reuse_state=0
+  for k,r in enumerate(rows):
+   a,rg=self.get_response(r);z,rs=self.get_state(r)
+   reuse_gen+=rg;reuse_state+=rs
+   record={field:a[field] for field in ['id','label','original_grade_same_response','tokens','input_tokens','capped','response','prompt_sha256']}
+   record.update({v:r[v] for v in ['section','task_id','condition','fold','task_family_id','instruction_type']})
+   record['family_uid']= ('simple_' if r['section'] in 'AB' else 'derived_')+str(r['task_id'])
+   record['type']=r['instruction_type'];record['dataset']='IFEval-Simple' if r['section'] in 'AB' else 'IFEval-derived'
+   saved.append(record)
+   if (k+1)%20==0 or k+1==len(rows):
+    print(f'CCT progress {k+1}/{len(rows)} | cached generations {reuse_gen} | cached states {reuse_state}',flush=True)
+    with (out/'INFERENCE_PROGRESS.jsonl').open('w') as f:
+     for x in saved:f.write(json.dumps(x,ensure_ascii=False)+'\n')
+    savejson(out/'INFERENCE_PROGRESS.json',{'completed':k+1,'total':len(rows),
+     'cached_generations':reuse_gen,'cached_states':reuse_state})
+   if (k+1)%80==0:
+    gc.collect();self.torch.cuda.empty_cache()
+  assert len(saved)==len(rows)
+  return saved

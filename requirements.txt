@@ -1,0 +1,17 @@
+# Experiment dependencies.
+transformers==4.53.3
+accelerate>=1.2,<2
+huggingface-hub>=0.30,<1
+sentencepiece>=0.2
+scikit-learn>=1.4,<1.8
+pandas>=2,<3
+scipy>=1.12,<2
+tqdm>=4.66
+nltk>=3.8,<4
+immutabledict>=4
+langdetect>=1.0.9
+absl-py>=2
+requests>=2.31
+matplotlib>=3.7
+emoji>=2.10,<3
+torch  # Use a CUDA build with BF16 support.

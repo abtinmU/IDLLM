@@ -1,0 +1,93 @@
+"""CCT frozen prompt-manifest loader; @@SHORT_NAME@@ evaluation with preserved Phi-3 source provenance."""
+from pathlib import Path
+import io, os, json, hashlib, zipfile, re, collections, warnings
+import numpy as np
+import pandas as pd
+SECTIONS={'A':102,'B':102,'C':161,'D':169}
+METHODS=('B0','B2','MT0','MT2')
+REVISION='@@MODEL_REVISION@@'
+SOURCE_ORIGIN_REVISION='f3c06aed622e14ca0abf5115094e4fc9a9948f36'
+VERIFIER_SHA={'instructions.py':'60e086f5342a03ce8e18b64bbcccf86308f523c08aa826707a562150a52f3edf',
+'instructions_util.py':'a73797261eee5bf447e279d82a2b700b1bdd3cb1193412dbab1270a85832bc6b',
+'instructions_registry.py':'ec92d72c264f6d906978613085db262356174300370a3fffe6fefd5969ce9cfc'}
+
+def digest(b):return hashlib.sha256(b).hexdigest()
+def hash_prompt(s):return digest(s.encode('utf8'))
+def readjsonl(b):return [json.loads(x) for x in b.decode('utf8').splitlines() if x.strip()]
+def canon(x):return json.dumps(x,sort_keys=True,ensure_ascii=False,separators=(',',':'))
+def savejson(p,x):
+ p=Path(p);p.parent.mkdir(parents=True,exist_ok=True)
+ tmp=p.with_suffix(p.suffix+'.tmp');tmp.write_text(json.dumps(x,indent=2,ensure_ascii=False,default=str));os.replace(tmp,p)
+def savecsv(p,items):pd.DataFrame(items).to_csv(p,index=False)
+
+def load_cct(p):
+ with zipfile.ZipFile(p) as z:
+  assert z.testzip() is None,'Bad benchmark zip'
+  sha=json.loads(z.read('SHA256SUMS.json'))
+  for name,h in sha.items():assert digest(z.read(name))==h,('CCT SHA mismatch',name)
+  rows=readjsonl(z.read('unified/CCT_counterfactual_prompts.jsonl'))
+  assert len(rows)==1068 and len({r['id'] for r in rows})==1068
+  by={}
+  for sec,n in SECTIONS.items():
+   fs=readjsonl(z.read(f'sections/{sec}/section_{sec}_families.jsonl'))
+   assert len(fs)==n
+   for f in fs:
+    pair=(sec,int(f['task_id']))
+    assert pair not in by
+    by[pair]=f
+   ss=[r for r in rows if r['section']==sec]
+   assert len(ss)==n*2 and len({r['id'] for r in ss})==n*2
+  assert all(hash_prompt(r['prompt'])==r['prompt_sha256'] for r in rows)
+  for r in rows:
+   f=by[(r['section'],int(r['task_id']))]
+   assert r['prompt']==f[r['condition']+'_prompt']
+   assert hash_prompt(f['O_prompt'])==r['parent_original_prompt_sha256']
+   assert hash_prompt(f['R1_prompt'])==r['parent_R1_prompt_sha256']
+   assert r['fold']==f['fold']
+   assert r['target_kwargs']==f['counterfactual_kwargs']
+  proto=json.loads(z.read('benchmark_protocol.json'))
+  assert proto['source_model_revision']==SOURCE_ORIGIN_REVISION, 'CCT ZIP was generated from an unexpected source-model protocol'
+  assert len({r['task_family_id'] for r in rows})==282
+  return rows,by,proto
+
+def checker_module(work):
+ """Download and verify exact original IFEval checker sources."""
+ import sys,urllib.request,importlib
+ root=Path(work)/'official_checker'; pkg=root/'instruction_following_eval';pkg.mkdir(parents=True,exist_ok=True)
+ (pkg/'__init__.py').touch()
+ for name,expected in VERIFIER_SHA.items():
+  p=pkg/name
+  if not p.exists() and os.environ.get('ULM_CHECKER_SOURCE_DIR'):
+   pinned=Path(os.environ['ULM_CHECKER_SOURCE_DIR'])/name
+   if pinned.is_file() and digest(pinned.read_bytes())==expected:p.write_bytes(pinned.read_bytes())
+  if not p.exists():
+   u='https://raw.githubusercontent.com/google-research/google-research/master/instruction_following_eval/'+name
+   with urllib.request.urlopen(u,timeout=70) as resp:b=resp.read()
+   assert digest(b)==expected,('Official checker upstream changed',name)
+   p.write_bytes(b)
+  assert digest(p.read_bytes())==expected
+ if str(root) not in sys.path:sys.path.insert(0,str(root))
+ from instruction_following_eval import instructions_registry
+ def check(typ,kw,response):
+  if not response or not response.strip():return 0
+  o=instructions_registry.INSTRUCTION_DICT[typ](typ)
+  o.build_description(**kw)
+  return int(bool(o.check_following(response)))
+ for typ,kw,good,bad in [
+  ('startend:end_checker',{'end_phrase':'Proof finished.'},'A valid English paragraph. Proof finished.','A valid English paragraph.'),
+  ('detectable_content:number_placeholders',{'num_placeholders':3},'[a] [b] [c]','[a] [b]')]:
+  assert check(typ,kw,good)==1 and check(typ,kw,bad)==0
+ return check
+
+def audit_semantic(families,work):
+ rows=[]
+ for (sec,task),f in families.items():
+  flag=f.get('manual_compatibility_review',False)
+  if sec=='B':flag=True # Match the official checker.
+  rows.append({'section':sec,'task_id':task,'fold':f['fold'],'flag':bool(flag),
+       'reason':('Simple placeholders R1 specifies nonempty; checker accepts []' if sec=='B' else 'Native-source constraint may interact with added rule' if flag else 'No automated flag'),
+       'base_task':f['base_task'],'O_prompt':f['O_prompt'],'R1_prompt':f['R1_prompt'],
+       'C0_prompt':f['C0_prompt'],'C1_prompt':f['C1_prompt'],
+       'human_review_status':'NOT REVIEWED','compatible_with_base':'','equivalent_wording':'','review_notes':''})
+ pd.DataFrame(rows).to_csv(Path(work)/'SEMANTIC_REVIEW_REQUIRED.csv',index=False)
+ return pd.DataFrame(rows)
