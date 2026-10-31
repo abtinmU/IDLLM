@@ -31,7 +31,7 @@ To run one model, replace `all` with `phi3`, `qwen`, or `llama`. The optional IF
 
 ## Datasets
 
-CCT is included at `data/cct_benchmark.zip`. No download is needed. Use another copy with `--cct-zip PATH`.
+CCT is included at `data/cct_benchmark.zip`. 
 
 The code automatically downloads the other public data when needed:
 
@@ -39,7 +39,7 @@ The code automatically downloads the other public data when needed:
 - [FollowBench data](https://github.com/YJiangcm/FollowBench/tree/master/data)
 - [Original IFEval data and checker](https://github.com/google-research/google-research/tree/master/instruction_following_eval)
 
-Manual downloads are optional. Put IFEval-Simple at `<workdir>/IFEval-Simple/data/ifeval_simple.jsonl`. Put FollowBench files in `<workdir>/FollowBench-derived/<model-folder>/data/followbench_en/`. Pass a local IFEval checker with `--checker-dir PATH`.
+Manual downloads are not needed, but if you want to download and inspect them yourself, put IFEval-Simple at `<workdir>/IFEval-Simple/data/ifeval_simple.jsonl` and FollowBench files in `<workdir>/FollowBench-derived/<model-folder>/data/followbench_en/`. Pass a local IFEval checker with `--checker-dir PATH`.
 
 ## Useful checks
 
