@@ -43,7 +43,7 @@ def load_cct(p):
    assert r['prompt']==f[r['condition']+'_prompt']
    assert hash_prompt(f['O_prompt'])==r['parent_original_prompt_sha256']
    assert hash_prompt(f['R1_prompt'])==r['parent_R1_prompt_sha256']
-   assert r['fold']==f['fold']
+   assert r['fold']==f['cct_fold']
    assert r['target_kwargs']==f['counterfactual_kwargs']
   proto=json.loads(z.read('benchmark_protocol.json'))
   assert proto['source_model_revision']==SOURCE_ORIGIN_REVISION, 'CCT ZIP was generated from an unexpected source-model protocol'
@@ -78,16 +78,3 @@ def checker_module(work):
   ('detectable_content:number_placeholders',{'num_placeholders':3},'[a] [b] [c]','[a] [b]')]:
   assert check(typ,kw,good)==1 and check(typ,kw,bad)==0
  return check
-
-def audit_semantic(families,work):
- rows=[]
- for (sec,task),f in families.items():
-  flag=f.get('manual_compatibility_review',False)
-  if sec=='B':flag=True # Match the official checker.
-  rows.append({'section':sec,'task_id':task,'fold':f['fold'],'flag':bool(flag),
-       'reason':('Simple placeholders R1 specifies nonempty; checker accepts []' if sec=='B' else 'Native-source constraint may interact with added rule' if flag else 'No automated flag'),
-       'base_task':f['base_task'],'O_prompt':f['O_prompt'],'R1_prompt':f['R1_prompt'],
-       'C0_prompt':f['C0_prompt'],'C1_prompt':f['C1_prompt'],
-       'human_review_status':'NOT REVIEWED','compatible_with_base':'','equivalent_wording':'','review_notes':''})
- pd.DataFrame(rows).to_csv(Path(work)/'SEMANTIC_REVIEW_REQUIRED.csv',index=False)
- return pd.DataFrame(rows)

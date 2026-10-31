@@ -15,7 +15,7 @@ if not REPLAY_COMPLETE:
     _needed={'transformers':'4.53.3','accelerate':None,'huggingface-hub':None,
      'sentencepiece':None,'scikit-learn':None,'pandas':None,'scipy':None,'tqdm':None,
      'nltk':None,'immutabledict':None,'langdetect':None,'absl-py':None,'requests':None,
-     'matplotlib':None,'emoji':None}
+     'matplotlib':None,'emoji':None,'torch':None}
     _missing=[]
     for _pkg,_exact in _needed.items():
         try:
@@ -25,7 +25,7 @@ if not REPLAY_COMPLETE:
     if _missing:
         print('Installing missing/incompatible dependencies:',_missing)
         import shlex as _shlex
-        _sp.check_call([_sys.executable,'-m','pip']+_shlex.split("-q install 'transformers==4.53.3' 'accelerate>=1.2,<2' 'huggingface-hub>=0.30,<1' 'sentencepiece>=0.2' 'scikit-learn>=1.4,<1.8' 'pandas>=2,<3' 'scipy>=1.12,<2' 'tqdm>=4.66' 'nltk>=3.8,<4' 'immutabledict>=4' 'langdetect>=1.0.9' 'absl-py>=2' 'requests>=2.31' 'matplotlib>=3.7' 'emoji>=2.10,<3'"))
+        _sp.check_call([_sys.executable,'-m','pip']+_shlex.split("-q install 'transformers==4.53.3' 'accelerate>=1.2,<2' 'huggingface-hub>=0.30,<1' 'sentencepiece>=0.2' 'scikit-learn>=1.4,<1.8' 'pandas>=2,<3' 'scipy>=1.12,<2' 'tqdm>=4.66' 'nltk>=3.8,<4' 'immutabledict>=4' 'langdetect>=1.0.9' 'absl-py>=2' 'requests>=2.31' 'matplotlib>=3.7' 'emoji>=2.10,<3' 'torch>=2.2'"))
     else:
         print('Python dependencies already satisfied; no installation or network required.')
 
@@ -67,7 +67,7 @@ if not REPLAY_COMPLETE:
     
     MODEL = SPEC.key
     RUN_TAG = 'final_'+SPEC.tag+'_simple_v1'  
-    RUN_TEXT_CONTROL = True
+    RUN_TEXT_CONTROL = not PAPER_ONLY
     RUN_OTHER_LAYERS = False    
     N_BOOT = 2000
     SEED = 20261017

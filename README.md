@@ -1,49 +1,49 @@
-# ULM experiment code
+# ULM experiments
 
-This folder runs the ULM experiments for three models:
+This repository reproduces the ULM experiments for Phi-3 Mini, Qwen2.5-3B, and Llama-3.2-3B. The three matching notebooks are in `notebooks/`.
 
-- Phi-3 Mini
-- Qwen2.5-3B
-- Llama-3.2-3B
+## Setup
 
-The same experiments are also available as notebooks in `notebooks/`.
-
-## What is needed
-
-- Python 3
-- An NVIDIA GPU with BF16 support, such as an A100 or H100
-- Internet access to GitHub and Hugging Face
-- Hugging Face access and `HF_TOKEN` for Llama
-
-The CCT dataset is included at `data/cct_benchmark.zip`. The code finds it automatically.
-
-## Install
+You need Python 3, internet access, and an NVIDIA GPU with BF16 support. Llama also needs an accepted Hugging Face license and `HF_TOKEN`.
 
 ```bash
 python -m pip install -r requirements.txt
-```
-
-## Check the setup
-
-```bash
-python run.py --list-stages
 python run.py --model all --dry-run
 ```
 
-## Run one model
+## Reproduce the paper
+
+Run all three models and create the paper configuration and compact result tables:
 
 ```bash
-python run.py --model qwen
+python run.py --model all --paper --workdir results
 ```
 
-Use `phi3`, `qwen`, or `llama` as the model name.
+The summaries are written to `results/paper_results/table_2.csv`, `table_3.csv`, and `table_4.csv`. Finished steps are cached, so the same command resumes an interrupted run.
 
-## Run all models
+To rebuild these tables from completed runs without training again:
 
 ```bash
-python run.py --model all --workdir results
+python paper_results.py results
 ```
 
-Each model gets its own output folder. Finished steps are cached, so an interrupted run can continue later.
+To run one model, replace `all` with `phi3`, `qwen`, or `llama`. The optional IFEval-derived study is outside the paper configuration; run it only with `--run-ifeval-derived`.
 
-The IFEval-derived stage is off by default. Add `--run-ifeval-derived` only if you need it.
+## Datasets
+
+CCT is included at `data/cct_benchmark.zip`. No download is needed. Use another copy with `--cct-zip PATH`.
+
+The code automatically downloads the other public data when needed:
+
+- [IFEval-Simple data](https://raw.githubusercontent.com/apple-aiml-research/ml-internal-llms-instruction-following/main/data/ifeval_simple.jsonl)
+- [FollowBench data](https://github.com/YJiangcm/FollowBench/tree/master/data)
+- [Original IFEval data and checker](https://github.com/google-research/google-research/tree/master/instruction_following_eval)
+
+Manual downloads are optional. Put IFEval-Simple at `<workdir>/IFEval-Simple/data/ifeval_simple.jsonl`. Put FollowBench files in `<workdir>/FollowBench-derived/<model-folder>/data/followbench_en/`. Pass a local IFEval checker with `--checker-dir PATH`.
+
+## Useful checks
+
+```bash
+python run.py --list-stages
+python run.py --model qwen --dry-run --paper
+```

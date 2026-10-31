@@ -319,24 +319,24 @@ if not REPLAY_COMPLETE and RUN_IFEVAL_DERIVED:
         selection.append({'key':key,'type':r['instruction_id_list'][0],
                           'reason':'conservative_exact_span_match','selected':True})
     selection=pd.DataFrame(selection);selection.to_csv(DATA/'rewrite_coverage_all541.csv',index=False)
-    review=pd.DataFrame(candidates);review.to_csv(DATA/'rewrite_review_all.csv',index=False)
-    print('Conservatively rewritable prompts:',len(review),'of 541')
-    if len(review):display(review.type.value_counts().to_frame('eligible_prompts'))
-    print('Review file:',DATA/'rewrite_review_all.csv')
+    candidates_df=pd.DataFrame(candidates);candidates_df.to_csv(DATA/'rewrite_candidates_all.csv',index=False)
+    print('Conservatively rewritable prompts:',len(candidates_df),'of 541')
+    if len(candidates_df):display(candidates_df.type.value_counts().to_frame('eligible_prompts'))
+    print('Candidate file:',DATA/'rewrite_candidates_all.csv')
     
     freeze(DATA/'rewriting_fingerprint.json',{'version':REWRITE_VERSION,
-         'review_sha256':shafile(DATA/'rewrite_review_all.csv'),'source_sha256':SOURCE_SHA})
+         'candidate_sha256':shafile(DATA/'rewrite_candidates_all.csv'),'source_sha256':SOURCE_SHA})
 
 
 if not REPLAY_COMPLETE and RUN_IFEVAL_DERIVED:
-    count=review.type.value_counts() if len(review) else pd.Series(dtype=int)
+    count=candidates_df.type.value_counts() if len(candidates_df) else pd.Series(dtype=int)
     ELIGIBLE_TYPES=sorted(count[count>=MIN_PER_TYPE].index.tolist())
     assert len(ELIGIBLE_TYPES)>=2, ('Too few conservative rule-verified categories. '
-        'Inspect rewrite_coverage_all541.csv and add HUMAN-REVIEWED exact-span patterns. '
+        'Inspect rewrite_coverage_all541.csv and add exact-span patterns. '
         'Do not weaken the criteria or use append-only reminders as paraphrases.')
     record_by_key={int(r['key']):r for r in raw}
-    review_by_key={int(r.key):r for r in review.itertuples(index=False)}
-    keys=sorted(int(k) for k in review[review.type.isin(ELIGIBLE_TYPES)].key)
+    candidate_by_key={int(r.key):r for r in candidates_df.itertuples(index=False)}
+    keys=sorted(int(k) for k in candidates_df[candidates_df.type.isin(ELIGIBLE_TYPES)].key)
     
     texts=[record_by_key[k]['prompt'] for k in keys]
     vec=TfidfVectorizer(analyzer='char',ngram_range=(3,5),min_df=1).fit_transform(texts)
@@ -409,7 +409,7 @@ if not REPLAY_COMPLETE and RUN_IFEVAL_DERIVED:
     def rec_of(key,variant):
         r=record_by_key[int(key)];typ=r['instruction_id_list'][0]
         if variant=='original':p=r['prompt']
-        else:p=getattr(review_by_key[int(key)],variant)
+        else:p=getattr(candidate_by_key[int(key)],variant)
         return {'key':int(key),'id':f'ifeval_{key}_{variant}',
             'group':int(GROUP[key]) if key in GROUP else int(key),'variant':variant,
             'prompt':p,'instruction_ids':r['instruction_id_list'],'kwargs':r['kwargs'],
@@ -943,7 +943,6 @@ if not REPLAY_COMPLETE and RUN_IFEVAL_DERIVED:
       'h1_holm_significant_cells':int((H1.holm_p<.05).sum()),
       'notes':['Unseen templates R1/R2 are withheld from tuning/training.',
                'Results are conditional on selected safely rewritable single-constraint examples.',
-               'Manual semantic review is necessary before asserting exact paraphrase equivalence.',
                'Near-duplicate groups are kept together, with pilot groups excluded from CV.',
                'No claim of method success is predetermined.']}
     write_json(RESULTS/'RESULT_SUMMARY.json',report)

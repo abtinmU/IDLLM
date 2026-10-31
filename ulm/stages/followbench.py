@@ -41,8 +41,8 @@ if not REPLAY_COMPLETE:
     BOOTSTRAPS=2000; Cs=(.03,.1,.3); DELTA_PENALTIES=(4.,16.)
     ID_MARGIN=.02; METHODS=('B0','B2','MT0','MT2')
     RUN_FULL_541=False
-    RUN_TEXT_CONTROL=True
-    RUN_GEOMETRY=True  
+    RUN_TEXT_CONTROL=not PAPER_ONLY
+    RUN_GEOMETRY=not PAPER_ONLY
     RUN_OTHER_LAYERS=False
 
     random.seed(SEED);np.random.seed(SEED);torch.manual_seed(SEED)
@@ -366,7 +366,7 @@ if not REPLAY_COMPLETE:
             n = int(score_one(typ, kw, neg, r['prompt']))
             assert p == 1 and n == 0, (
                 f'Verifier mismatch: type={typ}, form={r["variant"]}, '
-                f'positive={p}, negative={n}; review checker semantics.'
+                f'positive={p}, negative={n}; inspect checker semantics.'
             )
             smoke.append((typ, r['variant'], p, n))
 
@@ -444,19 +444,6 @@ if not REPLAY_COMPLETE:
     print('Pilot:',len(PILOT_GROUPS),'| study:',len(STUDY_GROUPS),'| compatible task families:',counts)
     print('Study source-level prompts:',sum(len(keys_by_group[g]) for g in STUDY_GROUPS))
     
-    review=[]
-    for typ in CANDIDATE_TYPES:
-        valid=[k for g in STUDY_GROUPS for k in keys_by_group[g]
-               if compatible(original_by_key[k],typ,kw_for(k,typ))]
-        for k in valid[:min(6,len(valid))]:
-            row={'key':k,'family':original_by_key[k]['family'],
-                 'category':original_by_key[k]['category'],'level':original_by_key[k]['level'],
-                 'source_prompt':original_by_key[k]['prompt'],'type':typ}
-            for v in ('original','P1','P2','R1','R2'):
-                row[v]=wording(typ,kw_for(k,typ),v)
-            review.append(row)
-    pd.DataFrame(review).to_csv(DATA/'formulation_semantic_review.csv',index=False)
-
     assert len(set(GROUP.values()))==len(clusters)
 
 
@@ -1032,7 +1019,6 @@ if not REPLAY_COMPLETE:
      'selected_types':PRIMARY_TYPES,'n_study_groups':len(GROUPS),
      'n_ood':len(OOD),'evaluable':PRIMARY_EVALUABLE,
      'study_warning':'Controlled FollowBench-derived extension, not native FollowBench benchmark HSR/SSR.',
-     'semantic_review_file':'data/formulation_semantic_review.csv',
      'bootstrap_unit':'source evolution family/near-duplicate cluster',
      'H1_p_values':'20k paired cluster sign-flip permutations, Holm adjusted',
      'primary_comparison':'MT2 vs B0 on heldout R1/R2 macro within-type AUROC'}

@@ -38,12 +38,16 @@ def parse_args(argv=None):
                         help='local official IFEval checker directory (sets ULM_CHECKER_SOURCE_DIR)')
     parser.add_argument('--run-ifeval-derived', action='store_true',
                         help='also run Part II, the IFEval-derived study, which the paper excludes')
+    parser.add_argument('--paper', action='store_true',
+                        help='run only the paper configuration and write compact paper tables')
     parser.add_argument('--until', choices=STAGE_NAMES, help='stop after this stage')
     parser.add_argument('--dry-run', action='store_true', help='print the resolved plan and exit')
     parser.add_argument('--list-stages', action='store_true', help='list stages and exit')
     args = parser.parse_args(argv)
     if not args.list_stages and not args.model:
         parser.error('--model is required')
+    if args.paper and args.run_ifeval_derived:
+        parser.error('--paper cannot be combined with --run-ifeval-derived')
     return parser, args
 
 
@@ -90,6 +94,7 @@ def print_plan(args, spec, several):
     print(f'workdir      {workdir or os.environ.get("ULM_WORKDIR") or f"results/ulm_{spec.tag}_server_results"}')
     print(f'cct zip      {args.cct_zip or os.environ.get("ULM_CCT_ZIP") or "data/cct_benchmark.zip (auto)"}')
     print(f'stages       {" -> ".join(stages)}')
+    print(f'paper mode   {"yes" if args.paper else "no"}')
     if spec.gated and not os.environ.get('HF_TOKEN'):
         print('note         gated checkpoint: accept the licence on Hugging Face and set HF_TOKEN')
 
@@ -120,6 +125,8 @@ def main(argv=None):
             if code != 0:
                 print(f'{spec.display_name} failed with exit code {code}; stopping.', file=sys.stderr)
                 return code
+        if args.paper and not args.until:
+            write_paper_results(args.workdir or Path('results'))
         return 0
 
     spec = specs[0]
@@ -127,8 +134,18 @@ def main(argv=None):
     if spec.gated and not os.environ.get('HF_TOKEN'):
         print('Note: gated checkpoint; set HF_TOKEN unless the Hugging Face cache is already authenticated.')
     from ulm import pipeline
-    pipeline.run(spec, until=args.until, run_ifeval_derived=args.run_ifeval_derived)
+    pipeline.run(spec, until=args.until, run_ifeval_derived=args.run_ifeval_derived,
+                 paper_only=args.paper)
+    if args.paper and not args.until:
+        write_paper_results(workdir_for(args, spec, several) or
+                            Path(os.environ.get('ULM_WORKDIR', f'results/ulm_{spec.tag}_server_results')))
     return 0
+
+
+def write_paper_results(root):
+    """Write and print the compact tables reported in the paper."""
+    from paper_results import build_tables
+    build_tables(Path(root).expanduser().resolve())
 
 
 def child_command(args, spec):
@@ -143,6 +160,8 @@ def child_command(args, spec):
         command += ['--checker-dir', str(args.checker_dir.expanduser().resolve())]
     if args.run_ifeval_derived:
         command.append('--run-ifeval-derived')
+    if args.paper:
+        command.append('--paper')
     if args.until:
         command += ['--until', args.until]
     return command

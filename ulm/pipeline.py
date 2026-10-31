@@ -21,14 +21,15 @@ STAGES = (
 STAGE_NAMES = tuple(name for name, _, _ in STAGES)
 
 
-def run(spec, until=None, run_ifeval_derived=False):
+def run(spec, until=None, run_ifeval_derived=False, paper_only=False):
     """Execute stages in order and return the session module holding their globals.
 
     Stages share one namespace because they were notebook cells; it is registered in
     sys.modules so classes defined in a stage stay importable by name.
     """
     session = types.ModuleType('ulm_session')
-    session.__dict__.update(SPEC=spec, RUN_IFEVAL_DERIVED=run_ifeval_derived)
+    session.__dict__.update(SPEC=spec, RUN_IFEVAL_DERIVED=run_ifeval_derived,
+                            PAPER_ONLY=paper_only)
     sys.modules['ulm_session'] = session
     for name, filename, _ in STAGES:
         path = STAGE_DIR / filename

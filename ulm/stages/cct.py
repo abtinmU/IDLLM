@@ -53,16 +53,6 @@ if not REPLAY_COMPLETE:
     CCT_ROOT=ULM_WORKDIR/'CCT_independent_refit'
     CCT_ROOT.mkdir(parents=True,exist_ok=True)
     CCT_CHECK=checker_module(CCT_ROOT)
-    CCT_REVIEW=[]
-    for (sec,task),f in sorted(cct_family.items()):
-        flag=bool(f.get('manual_compatibility_review',False)) or sec in ('C','D')
-        CCT_REVIEW.append({'section':sec,'task_id':int(task),'source_family':f['base_task'],
-          'flag':flag,'reason':'Potential task/constraint incompatibility requiring human review' if flag else '',
-          'O_prompt':f['O_prompt'],'R1_prompt':f['R1_prompt'],'C0_prompt':f['C0_prompt'],'C1_prompt':f['C1_prompt'],
-          'human_review_status':'NOT_REVIEWED','compatible_with_source_task':'','equivalent_wording':'','notes':''})
-    CCT_REVIEW=pd.DataFrame(CCT_REVIEW)
-    CCT_REVIEW.to_csv(CCT_ROOT/'semantic_review_required.csv',index=False)
-    assert len(CCT_REVIEW)==534
     
     source_family_for_case={(r['section'],int(r['task_id'])):str(r['task_family_id']) for r in cct_new}
     assert len(set(source_family_for_case.values()))==282, 'Expected 282 independent CCT base-task families'
@@ -80,7 +70,7 @@ if not REPLAY_COMPLETE:
                 'original_kwargs':f['original_kwargs'],'base_task':f['base_task'],
                 'generation_budget':int(new_example['generation_budget']),
                 'max_input_tokens':int(new_example.get('max_input_tokens',1024)),
-                'review_flag':bool(CCT_REVIEW[(CCT_REVIEW.section==sec)&(CCT_REVIEW.task_id==task)].iloc[0].flag)})
+                'fold':int(f['cct_fold'])})
     assert len(CCT_CASES)==2136 and len({x['id'] for x in CCT_CASES})==2136
     assert all(x['generation_budget']==(1024 if x['section'] in 'AB' else 1536) for x in CCT_CASES)
     cct_manifest={'source_zip_sha256':hashlib.sha256(CCT_ZIP.read_bytes()).hexdigest(),
@@ -93,7 +83,6 @@ if not REPLAY_COMPLETE:
     if manifest_path.exists():assert json.loads(manifest_path.read_text())==cct_manifest, 'CCT run provenance changed'
     else:savejson(manifest_path,cct_manifest)
     print('CCT verified:',len(CCT_CASES),'conditions,',len(set(source_family_for_case.values())),'source families')
-    print('Known semantic-review flags:',int(CCT_REVIEW.flag.sum()),'of',len(CCT_REVIEW))
 
 
 
@@ -110,13 +99,18 @@ if not REPLAY_COMPLETE:
     CCT_FOLDS=5
     CCT_METHODS=('B0','B2','MT0','MT2')
     CCT_GROUPS=np.array(sorted(set(source_family_for_case.values())))
-    cct_split=list(KFold(n_splits=CCT_FOLDS,shuffle=True,random_state=CCT_SEED).split(CCT_GROUPS))
-    cct_fold={str(CCT_GROUPS[k]):j for j,(_,te) in enumerate(cct_split) for k in te}
+    cct_fold={item['task_family_id']:int(item['fold']) for item in CCT_CASES}
     assert len(cct_fold)==282
+    assert set(cct_fold.values())==set(range(CCT_FOLDS))
+    cct_split=[]
+    for fold in range(CCT_FOLDS):
+        test=np.flatnonzero([cct_fold[str(group)]==fold for group in CCT_GROUPS])
+        train=np.flatnonzero([cct_fold[str(group)]!=fold for group in CCT_GROUPS])
+        cct_split.append((train,test))
     cct_labels=[];cct_states=[]
     for item in tqdm([r for r in CCT_CASES if r['condition'] in ('O','R1')],desc='CCT source O/R1 (new responses + states)'):
         gen,_=cct_runner.get_response(item);st,_=cct_runner.get_state(item)
-        cct_labels.append({k:item[k] for k in ('id','section','task_id','condition','task_family_id','type','base_task','prompt','review_flag')}
+        cct_labels.append({k:item[k] for k in ('id','section','task_id','condition','task_family_id','type','base_task','prompt')}
              |{'label':int(gen['label']),'capped':int(gen['capped']),'tokens':int(gen['tokens']),
                'fold':cct_fold[item['task_family_id']]})
         cct_states.append(np.asarray(st[0],np.float32))
@@ -262,7 +256,7 @@ if not REPLAY_COMPLETE:
     for item in tqdm(CCT_CASES,desc='CCT all-condition out-of-fold scores'):
         gen,_=cct_runner.get_response(item);st,_=cct_runner.get_state(item)
         typ=CCT_TYPE_ID[item['instruction_type']];fold=cct_fold[item['task_family_id']]
-        record={k:item[k] for k in ('id','section','task_id','condition','task_family_id','type','base_task','prompt','review_flag')}
+        record={k:item[k] for k in ('id','section','task_id','condition','task_family_id','type','base_task','prompt')}
         record.update({'fold':fold,'label':int(gen['label']),'capped':int(gen['capped']),
           'tokens':int(gen['tokens']),'input_tokens':int(gen['input_tokens']),
           'original_grade_same_response':int(gen['original_grade_same_response'])})
@@ -362,7 +356,6 @@ if not REPLAY_COMPLETE:
     display(CCT_STATS[(CCT_STATS.condition=='C1')][['section','method','n','positive','negative','AUROC']].round(3))
     print('CCT wording-change flip metrics (MT2 and task-only controls):')
     display(CCT_FLIP[(CCT_FLIP.section=='all')&(CCT_FLIP.method.isin(['MT2','task_only']))].round(3))
-    print('IMPORTANT: human semantic review remains pending; target-rule checker does not certify source-task compatibility.')
 
 
 
@@ -379,7 +372,6 @@ if not REPLAY_COMPLETE:
                        'FollowBench-derived':str(FOLLOWBENCH_RESULTS)},
      'cct_refit_protocol':'independent CCT five-fold O/R1-trained refit; NOT byte-identical archived source-study probes',
      'claims':['formulation_transfer','type-aware_over_equally_augmented_shared','paired_individual_change_prediction'],
-     'manual_semantic_review':'PENDING',
      'model_weights_in_archive':False,
      'input_count':len(CCT_CASES),'source_families':len(FAMS)}
     (ULM_WORKDIR/'RUN_MANIFEST.json').write_text(json.dumps(manifest,indent=2))

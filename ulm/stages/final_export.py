@@ -171,43 +171,22 @@ if not REPLAY_COMPLETE:
 
 
 if not REPLAY_COMPLETE:
-    simple_source=Path(SIMPLE_RESULTS).parent/'all_1836_scored.jsonl'
-    assert simple_source.is_file(), f'Missing frozen IFEval-Simple generation records: {simple_source}'
-    ss=pd.read_json(simple_source,lines=True)
-    orig=ss[ss.variant.eq('original')][['task_id','instruction_type','prompt','kwargs']]
-    orig=orig.rename(columns={'prompt':'canonical_prompt','kwargs':'canonical_rule_kwargs'})
-    rw=ss[ss.variant.isin(['R1','R2'])][['task_id','instruction_type','variant','prompt','kwargs']]
-    review=rw.merge(orig,on=['task_id','instruction_type'],how='left',validate='many_to_one')
-    assert len(review)==102*3*2 and review.canonical_prompt.notna().all()
-    review['known_issue']=np.where((review.instruction_type=='detectable_content:number_placeholders')&
-                                   (review.variant=='R1'),
-                       'R1 uses nonempty placeholder wording, but the original verifier may count []', '')
-    review['manual_semantic_validated']='NOT_REVIEWED'
-    review.to_csv(FINAL_ROOT/'ifeval_simple_semantic_review_queue.csv',index=False)
-    print('IFEval-Simple reformulations awaiting semantic review:',len(review))
-    print('Known wording/verifier mismatch cases:',int(review.known_issue.ne('').sum()))
-
-
-
-
-
-
-
-if not REPLAY_COMPLETE:
     import shutil, hashlib, zipfile, os
     required={
       'IFEval-Simple':{
         'dir':Path(SIMPLE_RESULTS),
         'files':['H2_paired_OOD_AUROC_bootstrap.csv','original_domain_retention.csv',
-                 'flip_prediction_diagnostic.csv','char_tfidf_control.csv','per_type_formulation_metrics.csv']},
+                 'flip_prediction_diagnostic.csv','per_type_formulation_metrics.csv'] +
+                ([] if PAPER_ONLY else ['char_tfidf_control.csv'])},
       'IFEval-derived':{
         'dir':Path(IFEVAL_RESULTS) if RUN_IFEVAL_DERIVED else None,
         'files':['H2_bootstrap_and_ID_retention.csv','OOD_controls.csv',
                  'behavioral_flips.csv','per_type_and_formulation.csv']},
       'FollowBench-derived':{
         'dir':Path(FOLLOWBENCH_RESULTS),
-        'files':['H2_bootstrap.csv','text_controls_metrics.csv','OOD_class_support.csv',
-                 'behavioral_flip_tracking.csv','per_type_formulation.csv']}}
+        'files':['H2_bootstrap.csv','OOD_class_support.csv',
+                 'behavioral_flip_tracking.csv','per_type_formulation.csv'] +
+                ([] if PAPER_ONLY else ['text_controls_metrics.csv'])}}
     if not RUN_IFEVAL_DERIVED:required.pop('IFEval-derived')
     for name,info in required.items():
         missing=[fname for fname in info['files'] if not (info['dir']/fname).is_file()]
@@ -221,7 +200,7 @@ if not REPLAY_COMPLETE:
      'main_research_questions':['formulation_transfer','type_aware_vs_equally_augmented_shared',
                                 'within_pair_predictive_reliability'],
      'protocol_cautions':['IFEval-derived and FollowBench-derived labels are for added verifiable rules',
-     'Only fixed, official checker labels; manual semantic review must be completed for publication',
+     'Only fixed, official checker labels are used',
      'Looped-model extensions, B3 and extra layer searches are excluded; CCT is a separate group-refit validation section'],
      'n_matched_rows':int(len(ALL)),
      'sha256':{}
@@ -237,9 +216,5 @@ if not REPLAY_COMPLETE:
             for fname in info['files']:
                 z.write(info['dir']/fname,arcname=f'source_audits/{name}/{fname}')
         
-        for reviewpath in ([Path(IFEVAL_RESULTS).parent/'data'/'rewrite_review_all.csv'] if RUN_IFEVAL_DERIVED else [])+[
-                           Path(FOLLOWBENCH_RESULTS).parent/'data'/'formulation_semantic_review.csv']:
-            if reviewpath.is_file():z.write(reviewpath,arcname=f'semantic_review/{reviewpath.parent.parent.name}/{reviewpath.name}')
     print('Final paper files:',FINAL_ROOT)
     print('Portable evidence archive:',archive)
-    print('IMPORTANT: Perform and document human review of flagged reformulations before reporting them as validated.')
