@@ -31,7 +31,7 @@ To run one model, replace `all` with `phi3`, `qwen`, or `llama`. The optional IF
 
 ## Datasets
 
-CCT is included at `data/cct_benchmark.zip`. 
+CCT is included at `data/cct_benchmark.zip`. All 2,136 prompts are also available in a [browsable CSV](data/cct_benchmark_readable.csv), with a short [data guide](data/README.md).
 
 The code automatically downloads the other public data when needed:
 
